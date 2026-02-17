@@ -30,14 +30,14 @@ const List: FC = () => {
   const { t } = useTranslate("authorizations");
   const [searchParams, setSearchParams] = useSearchParams();
 
-  const allResourceTypes = Object.values(ResourceType);
-  let authorizationTabs = allResourceTypes;
-
-  if (!isTenantsApiEnabled) {
-    authorizationTabs = authorizationTabs.filter(
-      (type) => type !== ResourceType.TENANT,
-    );
-  }
+  // Memoize authorizationTabs to enable effective useCallback memoization
+  const authorizationTabs = useMemo(() => {
+    const allResourceTypes = Object.values(ResourceType);
+    if (!isTenantsApiEnabled) {
+      return allResourceTypes.filter((type) => type !== ResourceType.TENANT);
+    }
+    return allResourceTypes;
+  }, []);
 
   // Get the resource type from URL or use the first tab as default
   const resourceTypeFromUrl = searchParams.get("resourceType");
@@ -84,17 +84,25 @@ const List: FC = () => {
   // Ensure the URL always reflects the current active tab
   useEffect(() => {
     if (resourceTypeFromUrl !== activeTab) {
-      setSearchParams({ resourceType: activeTab }, { replace: true });
+      const newSearchParams = new URLSearchParams(searchParams);
+      newSearchParams.set("resourceType", activeTab);
+      setSearchParams(newSearchParams, { replace: true });
     }
-  }, [activeTab, resourceTypeFromUrl, setSearchParams]);
+  }, [activeTab, resourceTypeFromUrl, searchParams, setSearchParams]);
+
+  // Reset pagination when activeTab changes (e.g., via browser back/forward or URL edits)
+  useEffect(() => {
+    resetPagination();
+  }, [activeTab, resetPagination]);
 
   const handleTabChange = useCallback(
     (tab: { selectedIndex: number }) => {
       const newTab = authorizationTabs[tab.selectedIndex];
-      resetPagination();
-      setSearchParams({ resourceType: newTab });
+      const newSearchParams = new URLSearchParams(searchParams);
+      newSearchParams.set("resourceType", newTab);
+      setSearchParams(newSearchParams);
     },
-    [authorizationTabs, resetPagination, setSearchParams],
+    [authorizationTabs, searchParams, setSearchParams],
   );
 
   return (
