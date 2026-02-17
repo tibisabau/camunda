@@ -6,8 +6,9 @@
  * except in compliance with the Camunda License 1.0.
  */
 
-import { FC, useState, useMemo, useCallback } from "react";
+import { FC, useMemo, useCallback, useEffect } from "react";
 import { TabsVertical, Tab, TabPanels } from "@carbon/react";
+import { useSearchParams } from "react-router-dom";
 import useTranslate from "src/utility/localization";
 import { usePaginatedApi } from "src/utility/api";
 import Page, { PageHeader } from "src/components/layout/Page";
@@ -27,6 +28,7 @@ import { isTenantsApiEnabled } from "src/configuration";
 
 const List: FC = () => {
   const { t } = useTranslate("authorizations");
+  const [searchParams, setSearchParams] = useSearchParams();
 
   const allResourceTypes = Object.values(ResourceType);
   let authorizationTabs = allResourceTypes;
@@ -37,7 +39,16 @@ const List: FC = () => {
     );
   }
 
-  const [activeTab, setActiveTab] = useState<string>(authorizationTabs[0]);
+  // Get the resource type from URL or use the first tab as default
+  const resourceTypeFromUrl = searchParams.get("resourceType");
+  const isValidResourceType =
+    resourceTypeFromUrl &&
+    authorizationTabs.includes(resourceTypeFromUrl as ResourceType);
+  const initialTab = isValidResourceType
+    ? (resourceTypeFromUrl as ResourceType)
+    : authorizationTabs[0];
+
+  const activeTab = initialTab;
 
   const {
     data,
@@ -70,6 +81,22 @@ const List: FC = () => {
     [data, sortPermissionTypesAlphabetically],
   );
 
+  // Ensure the URL always reflects the current active tab
+  useEffect(() => {
+    if (resourceTypeFromUrl !== activeTab) {
+      setSearchParams({ resourceType: activeTab }, { replace: true });
+    }
+  }, [activeTab, resourceTypeFromUrl, setSearchParams]);
+
+  const handleTabChange = useCallback(
+    (tab: { selectedIndex: number }) => {
+      const newTab = authorizationTabs[tab.selectedIndex];
+      resetPagination();
+      setSearchParams({ resourceType: newTab });
+    },
+    [authorizationTabs, resetPagination, setSearchParams],
+  );
+
   return (
     <Page>
       <PageHeader
@@ -80,10 +107,8 @@ const List: FC = () => {
       <TabsTitle>{t("resourceType")}</TabsTitle>
       <TabsContainer>
         <TabsVertical
-          onChange={(tab: { selectedIndex: number }) => {
-            resetPagination();
-            setActiveTab(authorizationTabs[tab.selectedIndex]);
-          }}
+          selectedIndex={authorizationTabs.indexOf(activeTab)}
+          onChange={handleTabChange}
         >
           <CustomTabListVertical aria-label={t("authorizationType")}>
             {authorizationTabs.map((tab) => (
