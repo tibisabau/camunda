@@ -6,7 +6,7 @@
  * except in compliance with the Camunda License 1.0.
  */
 
-import { FC, useMemo, useCallback, useEffect } from "react";
+import { FC, useMemo, useCallback, useEffect, useState } from "react";
 import { TabsVertical, Tab, TabPanels } from "@carbon/react";
 import { useSearchParams } from "react-router-dom";
 import useTranslate from "src/utility/localization";
@@ -40,15 +40,27 @@ const List: FC = () => {
   }, []);
 
   // Get the resource type from URL or use the first tab as default
-  const resourceTypeFromUrl = searchParams.get("resourceType");
-  const isValidResourceType =
-    resourceTypeFromUrl &&
-    authorizationTabs.includes(resourceTypeFromUrl as ResourceType);
-  const initialTab = isValidResourceType
-    ? (resourceTypeFromUrl as ResourceType)
-    : authorizationTabs[0];
+  const getActiveTabFromUrl = useCallback(() => {
+    const resourceTypeFromUrl = searchParams.get("resourceType");
+    const isValidResourceType =
+      resourceTypeFromUrl &&
+      authorizationTabs.includes(resourceTypeFromUrl as ResourceType);
+    return isValidResourceType
+      ? (resourceTypeFromUrl as ResourceType)
+      : authorizationTabs[0];
+  }, [searchParams, authorizationTabs]);
 
-  const activeTab = initialTab;
+  const [activeTab, setActiveTab] = useState<ResourceType>(
+    getActiveTabFromUrl(),
+  );
+
+  // Sync activeTab state with URL changes (e.g., browser back/forward)
+  useEffect(() => {
+    const tabFromUrl = getActiveTabFromUrl();
+    if (tabFromUrl !== activeTab) {
+      setActiveTab(tabFromUrl);
+    }
+  }, [getActiveTabFromUrl, activeTab]);
 
   const {
     data,
@@ -83,12 +95,13 @@ const List: FC = () => {
 
   // Ensure the URL always reflects the current active tab
   useEffect(() => {
+    const resourceTypeFromUrl = searchParams.get("resourceType");
     if (resourceTypeFromUrl !== activeTab) {
       const newSearchParams = new URLSearchParams(searchParams);
       newSearchParams.set("resourceType", activeTab);
       setSearchParams(newSearchParams, { replace: true });
     }
-  }, [activeTab, resourceTypeFromUrl, searchParams, setSearchParams]);
+  }, [activeTab, searchParams, setSearchParams]);
 
   // Reset pagination when activeTab changes (e.g., via browser back/forward or URL edits)
   useEffect(() => {
@@ -98,11 +111,9 @@ const List: FC = () => {
   const handleTabChange = useCallback(
     (tab: { selectedIndex: number }) => {
       const newTab = authorizationTabs[tab.selectedIndex];
-      const newSearchParams = new URLSearchParams(searchParams);
-      newSearchParams.set("resourceType", newTab);
-      setSearchParams(newSearchParams);
+      setActiveTab(newTab);
     },
-    [authorizationTabs, searchParams, setSearchParams],
+    [authorizationTabs],
   );
 
   return (
